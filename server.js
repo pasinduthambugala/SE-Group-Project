@@ -24,6 +24,12 @@ app.use('/api/scanned-text', scannedTextRoutes);
 app.use('/api/browser-details', browserDetailsRoutes);
 app.use('/analytics', analyticsRoutes);
 app.use("/api", cashbookRoutes);
+app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/protected', require('./routes/protectedRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/attendance', require('./routes/attendanceRoutes'));
+
+app.get('/health', (_req, res) => res.json({ ok: true }));
 
 mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,

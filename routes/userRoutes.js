@@ -1,46 +1,47 @@
-const express = require('express');
-const router = express.Router();
+// routes/userRoutes.js
+const router = require('express').Router();
+const { auth, requireRoles } = require('../middleware/auth');
+const { ROLES } = require('../utils/roles');
+const { handleValidation } = require('../middleware/validate');
+const c = require('../controllers/userController');
 
-const User = require('../models/User');
-const Employee = require('../models/Employee');
+// List users (SA + Manager)
+router.get(
+  '/',
+  auth,
+  requireRoles(ROLES.SUPER_ADMIN, ROLES.MANAGER),
+  c.listValidators,
+  handleValidation,
+  c.listHandler
+);
 
-// ✅ Test Route
-router.get('/test', (req, res) => {
-  res.send('✅ User routes working!');
-});
+// Delete user (SA + Manager)
+router.delete(
+  '/:id',
+  auth,
+  requireRoles(ROLES.SUPER_ADMIN, ROLES.MANAGER),
+  c.idParam,
+  handleValidation,
+  c.deleteHandler
+);
 
-// ✅ Login Route
-router.post('/login', async (req, res) => {
-  const { username, password } = req.body;
-  console.log('Login attempt:', username);
+// Admin reset user password (SA + Manager; service blocks non-SA on SA)
+router.post(
+  '/:id/reset-password',
+  auth,
+  requireRoles(ROLES.SUPER_ADMIN, ROLES.MANAGER),
+  c.resetValidators,
+  handleValidation,
+  c.resetHandler
+);
 
-  try {
-    // 1. Find user
-    const user = await User.findOne({ username });
-
-    if (!user || user.password !== password) {
-      return res.status(401).json({ error: 'Invalid username or password' });
-    }
-
-    // 2. Find related employee record
-    const employee = await Employee.findOne({ userId: user._id });
-
-    if (!employee) {
-      return res.status(404).json({ error: 'Employee details not found' });
-    }
-
-    // 3. Send full data on success
-    return res.status(200).json({
-      message: 'Login successful',
-      userId: user._id,
-      employeeId: employee.employeeId,
-      employeeName: employee.employeeName,
-      jobRole: employee.jobRole,
-    });
-  } catch (err) {
-    console.error('Login error:', err.message);
-    return res.status(500).json({ error: 'Server error' });
-  }
-});
+// Self password change (any logged-in user)
+router.post(
+  '/me/change-password',
+  auth,
+  c.changeSelfValidators,
+  handleValidation,
+  c.changeSelfHandler
+);
 
 module.exports = router;
