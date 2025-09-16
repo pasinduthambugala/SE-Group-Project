@@ -5,6 +5,9 @@ require('dotenv').config();
 
 const userRoutes = require('./routes/userRoutes');
 const scannedTextRoutes = require('./routes/scannedTextRoutes');
+const browserDetailsRoutes = require('./routes/browserDetailsRoutes');
+const analyticsRoutes = require('./routes/analytics.routes');
+const cashbookRoutes = require("./routes/cashbook.routes");
 
 const app = express();
 
@@ -18,6 +21,9 @@ app.get('/', (req, res) => {
 // Mount routes with path prefixes
 app.use('/api/users', userRoutes);
 app.use('/api/scanned-text', scannedTextRoutes);
+app.use('/api/browser-details', browserDetailsRoutes);
+app.use('/analytics', analyticsRoutes);
+app.use("/api", cashbookRoutes);
 
 mongoose.connect(process.env.MONGO_URI, {
     useNewUrlParser: true,

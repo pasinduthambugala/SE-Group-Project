@@ -20,4 +20,47 @@ router.post('/', async (req, res) => {
   }
 });
 
+
+router.get('/', async (req, res) => {
+  try {
+    const { userId } = req.query; // optional filter by userId
+    let query = {};
+
+    if (userId) {
+      query.userId = userId;
+    }
+
+    const scannedTexts = await ScannedText.find(query).sort({ createdAt: -1 });
+
+    res.status(200).json(scannedTexts);
+  } catch (err) {
+    console.error('Fetching scanned texts failed:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
+router.get('/latest-by-fuel', async (req, res) => {
+  try {
+    // Use MongoDB aggregation to group by fuelType and pick latest
+    const latestData = await ScannedText.aggregate([
+      { $sort: { createdAt: -1 } }, // sort newest first
+      {
+        $group: {
+          _id: "$fuelType",      // group by fuelType
+          latest: { $first: "$$ROOT" } // get first document (latest) per group
+        }
+      },
+      { $replaceRoot: { newRoot: "$latest" } } // flatten structure
+    ]);
+
+    res.status(200).json(latestData);
+  } catch (err) {
+    console.error('Fetching latest by fuelType failed:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+
 module.exports = router;
+ 
