@@ -9,7 +9,7 @@ const c = require('../controllers/userController');
 router.get(
   '/',
   auth,
-  requireRoles(ROLES.SUPER_ADMIN, ROLES.MANAGER),
+  requireRoles(ROLES.SUPER_ADMIN, ROLES.MANAGER, ROLES.ACCOUNTANT),
   c.listValidators,
   handleValidation,
   c.listHandler

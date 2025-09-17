@@ -1,143 +1,52 @@
-// controllers/attendanceController.js
-const { body, query, param } = require('express-validator');
-const S = require('../services/attendanceService');
+const attendanceService = require('../services/attendanceService');
 
-const listValidators = [
-  query('page').optional().isInt({ min: 1 }).toInt(),
-  query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
-  query('userId').optional().isMongoId(),
-  query('role').optional().isString(),
-  query('dateFrom').optional().isString(),
-  query('dateTo').optional().isString(),
-  query('status').optional().isIn(['present','absent','leave','half-day']),
-  query('q').optional().isString(),
-];
-async function listHandler(req, res) {
-  const data = await S.listAttendance(req.query);
-  res.json(data);
-}
-
-const checkInValidators = [
-  body('dateKey').optional().isString(),
-  body('note').optional().isString(),
-  body('checkInAt').optional().isISO8601().toDate(),
-];
-async function checkInHandler(req, res) {
+async function markAttendance(req, res) {
   try {
-    const data = await S.checkInSelf({ actor: req.user, ...req.body });
-    res.json(data);
-  } catch (e) {
-    res.status(400).json({ message: e.message });
-  }
-}
+    const { nic, present, dailySalary, dateKey } = req.body;
 
-const checkOutValidators = [
-  body('dateKey').optional().isString(),
-  body('note').optional().isString(),
-  body('checkOutAt').optional().isISO8601().toDate(),
-];
-async function checkOutHandler(req, res) {
-  try {
-    const data = await S.checkOutSelf({ actor: req.user, ...req.body });
-    res.json(data);
-  } catch (e) {
-    res.status(400).json({ message: e.message });
-  }
-}
-
-const adminMarkValidators = [
-  body('userId').isMongoId(),
-  body('dateKey').optional().isString(),
-  body('status').optional().isIn(['present','absent','leave','half-day']),
-  body('checkInAt').optional().isISO8601().toDate(),
-  body('checkOutAt').optional().isISO8601().toDate(),
-  body('note').optional().isString(),
-  // salary fields
-  body('dailySalary').optional().isFloat({ min: 0 }),
-  body('salaryPaid').optional().isBoolean(),
-  body('salaryPaidAmount').optional().isFloat({ min: 0 }),
-  body('salaryPaidAt').optional().isISO8601().toDate(),
-  body('salaryNote').optional().isString(),
-];
-async function adminMarkHandler(req, res) {
-  try {
-    const data = await S.adminMark({
-      actor: req.user,
-      targetUserId: req.body.userId,
-      dateKey: req.body.dateKey,
-      data: {
-        status: req.body.status,
-        checkInAt: req.body.checkInAt,
-        checkOutAt: req.body.checkOutAt,
-        note: req.body.note,
-        dailySalary: req.body.dailySalary,
-        salaryPaid: req.body.salaryPaid,
-        salaryPaidAmount: req.body.salaryPaidAmount,
-        salaryPaidAt: req.body.salaryPaidAt,
-        salaryNote: req.body.salaryNote,
-      },
+    const attendance = await attendanceService.markByNic({
+      nic,
+      present,
+      dailySalary,
+      dateKey,                // optional; if omitted, service uses today's Colombo date
+      markedBy: req.user?.id, // from auth middleware
     });
-    res.json(data);
-  } catch (e) {
-    res.status(400).json({ message: e.message });
-  }
-}
 
-const payValidators = [
-  param('id').isMongoId(),
-  body('amount').isFloat({ min: 0 }),
-  body('note').optional().isString(),
-  body('paidAt').optional().isISO8601().toDate(),
-];
-async function payHandler(req, res) {
-  try {
-    const data = await S.payAttendance({
-      id: req.params.id,
-      amount: req.body.amount,
-      note: req.body.note,
-      actor: req.user,
-      paidAt: req.body.paidAt || new Date(),
+    return res.status(200).json({
+      message: 'Attendance saved',
+      attendance,
     });
-    res.json(data);
   } catch (e) {
-    res.status(400).json({ message: e.message });
+    if (e && e.code === 'USER_NOT_FOUND') {
+      return res.status(404).json({ message: 'No user found with that NIC' });
+    }
+    return res.status(500).json({ message: 'Failed to save attendance' });
   }
 }
 
-const deleteValidators = [param('id').isMongoId()];
-async function deleteHandler(req, res) {
+async function getByDate(req, res) {
   try {
-    const result = await S.deleteAttendanceById({ id: req.params.id, actor: req.user });
-    res.json(result);
+    const { nic, dateKey } = req.query;
+    const rec = await attendanceService.getByNicAndDate({ nic, dateKey });
+    if (!rec) return res.status(404).json({ message: 'No attendance record for that NIC/date' });
+    return res.json({ attendance: rec });
   } catch (e) {
-    res.status(400).json({ message: e.message });
+    return res.status(500).json({ message: 'Failed to fetch attendance' });
   }
 }
 
-const listMyValidators = [
-  query('page').optional().isInt({ min: 1 }).toInt(),
-  query('limit').optional().isInt({ min: 1, max: 100 }).toInt(),
-  query('month').optional().isInt({ min: 1, max: 12 }).toInt(),
-  query('year').optional().isInt({ min: 1970 }).toInt(),
-];
-async function listMyHandler(req, res) {
-  const data = await S.listMyAttendance({ actor: req.user, ...req.query });
-  res.json(data);
+async function listRange(req, res) {
+  try {
+    const { nic, from, to, page, limit } = req.query;
+    const data = await attendanceService.listByDateRange({ nic, from, to, page, limit });
+    return res.json(data);
+  } catch (e) {
+    return res.status(500).json({ message: 'Failed to fetch range' });
+  }
 }
 
 module.exports = {
-  listValidators,
-  listHandler,
-  checkInValidators,
-  checkInHandler,
-  checkOutValidators,
-  checkOutHandler,
-  adminMarkValidators,
-  adminMarkHandler,
-  payValidators,
-  payHandler,
-  deleteValidators,
-  deleteHandler,
-  listMyValidators,
-  listMyHandler,
+  markAttendance,
+  getByDate,
+  listRange,
 };
